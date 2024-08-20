@@ -15,7 +15,8 @@ app.get('/', (req, res) => {
 
 app.get('/authenticate', async (req, res) => {
     const { branch, roll_no, aadhar } = req.query;
-    const query = `SELECT * FROM ${branch} WHERE roll_no = ? AND aadhar = ?`;
+   	
+	const query = `SELECT * FROM ${branch} WHERE roll_no = ? AND aadhar = ?`;
 
     try {
         const db = await database.connectToDatabase();
