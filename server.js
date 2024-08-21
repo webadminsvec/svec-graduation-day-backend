@@ -15,8 +15,8 @@ app.get('/', (req, res) => {
 
 app.get('/authenticate', async (req, res) => {
     const { branch, roll_no, aadhar } = req.query;
-   	
-	const query = `SELECT * FROM ${branch} WHERE roll_no = ? AND aadhar = ?`;
+
+    const query = `SELECT * FROM ${branch} WHERE roll_no = ? AND aadhar = ?`;
 
     try {
         const db = await database.connectToDatabase();
@@ -35,12 +35,14 @@ app.get('/authenticate', async (req, res) => {
 });
 
 app.post('/insert_attendees', async (req, res) => {
-    const { roll_no, name, branch, no_of_attendees } = req.body;
-    const query = 'INSERT INTO attendee_student (roll_no, name, branch, no_of_attendees) VALUES (?, ?, ?, ?)';
+    const { roll_no, name, branch } = req.body;
+    const query = 'INSERT INTO attendee_student (roll_no, name, branch) VALUES (?, ?, ?)';
+    const update = `UPDATE student_data SET is_registered = ? WHERE roll_no = ?`;
 
     try {
         const db = await database.connectToDatabase();
-        const [result] = await db.execute(query, [roll_no, name, branch, no_of_attendees]);
+        const [result] = await db.execute(query, [roll_no, name, branch]);
+        await db.execute(update, [true, roll_no]);
         await db.end();
         res.status(201).send({ message: 'Student details inserted successfully!' });
     } catch (err) {
@@ -53,6 +55,7 @@ app.post('/insert_attendees', async (req, res) => {
 app.post('/insert_guests', async (req, res) => {
     const guests = req.body;
     const query = 'INSERT INTO guest_data (roll_no, guest_name, relation, phone_no) VALUES (?, ?, ?, ?)';
+    const update = `UPDATE attendee_student SET no_of_attendees = ? WHERE roll_no = ?`;
 
     if (!Array.isArray(guests) || guests.length === 0) {
         return res.status(400).send({ error: 'Invalid input: Expected an array of guest objects.' });
@@ -61,11 +64,14 @@ app.post('/insert_guests', async (req, res) => {
     try {
         const db = await database.connectToDatabase();
         await db.beginTransaction();
+        let guest_count = 0;
         for (const guest of guests) {
             const { roll_no, guest_name, relation, phone_no } = guest;
             await db.execute(query, [roll_no, guest_name, relation, phone_no]);
+            guest_count += 1;
         }
         await db.commit();
+        await db.execute(update, [guest_count, guests[0].roll_no]);
         await db.end();
         res.status(201).send({ message: 'guests details inserted successfully!' });
     } catch (err) {
