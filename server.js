@@ -53,25 +53,21 @@ app.post('/insert_attendees', async (req, res) => {
 
 
 app.post('/insert_guests', async (req, res) => {
-    const guests = req.body;
+    const attendees = req.body;
     const query = 'INSERT INTO guest_data (roll_no, guest_name, relation, phone_no) VALUES (?, ?, ?, ?)';
-    const update = `UPDATE attendee_student SET no_of_attendees = ? WHERE roll_no = ?`;
 
-    if (!Array.isArray(guests) || guests.length === 0) {
+    if (!Array.isArray(attendees) || attendees.length === 0) {
         return res.status(400).send({ error: 'Invalid input: Expected an array of guest objects.' });
     }
 
     try {
         const db = await database.connectToDatabase();
         await db.beginTransaction();
-        let guest_count = 0;
-        for (const guest of guests) {
+        for (const guest of attendees) {
             const { roll_no, guest_name, relation, phone_no } = guest;
             await db.execute(query, [roll_no, guest_name, relation, phone_no]);
-            guest_count += 1;
         }
         await db.commit();
-        await db.execute(update, [guest_count, guests[0].roll_no]);
         await db.end();
         res.status(201).send({ message: 'guests details inserted successfully!' });
     } catch (err) {
@@ -85,10 +81,9 @@ app.get('/get_attendees', async (req, res) => {
     const { roll_no } = req.query;
     try {
         const db = await database.connectToDatabase();
-        const [student] = await db.execute('SELECT * FROM attendee_student WHERE roll_no = ?', [roll_no]);
         const [guests] = await db.execute('SELECT * FROM guest_data WHERE roll_no = ?', [roll_no]);
         await db.end();
-        res.status(200).send({ student: student[0], guests: guests });
+        res.status(200).send(guests);
     } catch (err) {
         console.error('Failed to get guests details:', err);
         res.status(500).send({ error: 'Failed to get guests details.' });

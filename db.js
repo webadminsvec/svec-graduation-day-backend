@@ -11,6 +11,7 @@ async function connectToDatabase() {
             database: process.env.DB_NAME,
             waitForConnections: true,
             connectionLimit: 10,
+            connectTimeout:60000,
             queueLimit: 0
         });
         return connection;
