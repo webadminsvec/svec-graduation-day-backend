@@ -36,14 +36,26 @@ app.get('/authenticate', async (req, res) => {
 
 app.post('/insert_attendees', async (req, res) => {
     const { roll_no, name, branch } = req.body;
+    const lookup = `SELECT * FROM attendee_student WHERE roll_no = ?`; // Check in the attendee_student table
     const query = 'INSERT INTO attendee_student (roll_no, name, branch) VALUES (?, ?, ?)';
     const update = `UPDATE student_data SET is_registered = ? WHERE roll_no = ?`;
     const db = await database.connectToDatabase();
 
     try {
-        
-        const [result] = await db.execute(query, [roll_no, name, branch]);
+        // Check if the roll number already exists in attendee_student
+        const [lookUpResult] = await db.execute(lookup, [roll_no]);
+        if (lookUpResult.length !== 0) {
+            res.status(409).send({ error: 'Duplicate data found.' });
+            await db.end();
+            return; // Exit the function early if a duplicate is found
+        }
+
+        // Insert the new student record into attendee_student
+        await db.execute(query, [roll_no, name, branch]);
+
+        // Update the is_registered flag in student_data
         await db.execute(update, [true, roll_no]);
+
         await db.end();
         res.status(201).send({ message: 'Student details inserted successfully!' });
     } catch (err) {
@@ -58,6 +70,7 @@ app.post('/insert_attendees', async (req, res) => {
         if (db) await db.end(); // Ensure the connection is always closed
     }
 });
+
 
 
 
