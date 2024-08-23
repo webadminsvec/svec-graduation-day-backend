@@ -38,18 +38,27 @@ app.post('/insert_attendees', async (req, res) => {
     const { roll_no, name, branch } = req.body;
     const query = 'INSERT INTO attendee_student (roll_no, name, branch) VALUES (?, ?, ?)';
     const update = `UPDATE student_data SET is_registered = ? WHERE roll_no = ?`;
+    const db = await database.connectToDatabase();
 
     try {
-        const db = await database.connectToDatabase();
+        
         const [result] = await db.execute(query, [roll_no, name, branch]);
         await db.execute(update, [true, roll_no]);
         await db.end();
         res.status(201).send({ message: 'Student details inserted successfully!' });
     } catch (err) {
-        console.error('Failed to insert student details:', err);
-        res.status(500).send({ error: 'Failed to insert student details.' });
+        if (err.code === 'ER_DUP_ENTRY') {
+            res.status(409).send({ error: 'Duplicate entry found.' });
+            console.error('Duplicate entry found:', err.sqlMessage);
+        } else {
+            console.error('Failed to insert student details:', err);
+            res.status(500).send({ error: 'Failed to insert student details.' });
+        }
+    } finally {
+        if (db) await db.end(); // Ensure the connection is always closed
     }
 });
+
 
 
 app.post('/insert_guests', async (req, res) => {
