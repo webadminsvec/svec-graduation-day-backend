@@ -75,28 +75,38 @@ app.post('/insert_attendees', async (req, res) => {
 
 
 app.post('/insert_guests', async (req, res) => {
-    const attendees = req.body;
-    const query = 'INSERT INTO guest_data (roll_no, guest_name, relation, phone_no) VALUES (?, ?, ?, ?)';
+    const { attendees, empty } = req.body;
 
-    if (!Array.isArray(attendees) || attendees.length === 0) {
-        return res.status(400).send({ error: 'Invalid input: Expected an array of guest objects.' });
+    // Handle the case where the attendees list is empty and the empty flag is true
+    if (empty) {
+        return res.status(200).send({ message: 'No guests to insert. The attendees list is empty.' });
     }
+
+    // Validate that attendees is an array and is not empty
+    if (!Array.isArray(attendees) || attendees.length === 0) {
+        return res.status(400).send({ error: 'Invalid input: Expected a non-empty array of guest objects.' });
+    }
+
+    const query = 'INSERT INTO guest_data (roll_no, guest_name, relation, phone_no) VALUES (?, ?, ?, ?)';
 
     try {
         const db = await database.connectToDatabase();
         await db.beginTransaction();
+
         for (const guest of attendees) {
             const { roll_no, guest_name, relation, phone_no } = guest;
             await db.execute(query, [roll_no, guest_name, relation, phone_no]);
         }
+
         await db.commit();
         await db.end();
-        res.status(201).send({ message: 'guests details inserted successfully!' });
+        res.status(201).send({ message: 'Guests details inserted successfully!' });
     } catch (err) {
         console.error('Failed to insert guests details:', err);
         res.status(500).send({ error: 'Failed to insert guests details.' });
     }
 });
+
 
 
 app.get('/get_attendees', async (req, res) => {
