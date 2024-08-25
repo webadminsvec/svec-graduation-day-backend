@@ -34,6 +34,25 @@ app.get('/authenticate', async (req, res) => {
     }
 });
 
+app.post('/check_attendees', async (req, res) => {
+    const { roll_no } = req.body;
+    const query = `SELECT * FROM attendee_student WHERE roll_no = ?`;
+    try {
+        const db = await database.connectToDatabase();
+        const [result] = await db.execute(query, [roll_no]);
+        await db.end();
+
+        if (result.length === 0) {
+            res.status(404).send({ message: 'User not found or invalid user.' });
+        } else {
+            res.status(200).send(result[0]);
+        }
+    } catch (err) {
+        console.error('Failed to check attendees:', err);
+        res.status(500).send({ error: 'Failed to check attendees.' });
+    }
+});
+
 app.post('/insert_attendees', async (req, res) => {
     const { roll_no, name, branch } = req.body;
     const lookup = `SELECT * FROM attendee_student WHERE roll_no = ?`; // Check in the attendee_student table
@@ -70,8 +89,6 @@ app.post('/insert_attendees', async (req, res) => {
         if (db) await db.end(); // Ensure the connection is always closed
     }
 });
-
-
 
 
 app.post('/insert_guests', async (req, res) => {
