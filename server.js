@@ -19,7 +19,7 @@ app.get('/authenticate', async (req, res) => {
     const query = `SELECT * FROM ${branch} WHERE roll_no = ? AND aadhar = ?`;
 
     try {
-        const db = await database.connectToDatabase();
+        const db = await database.connectToSlave();
         const [result] = await db.execute(query, [roll_no, aadhar]);
         await db.end();
 
@@ -34,16 +34,16 @@ app.get('/authenticate', async (req, res) => {
     }
 });
 
-app.post('/check_attendees', async (req, res) => {
+app.post('/check_attendees', async (req, res) => { 
     const { roll_no } = req.body;
     const query = `SELECT * FROM attendee_student WHERE roll_no = ?`;
     try {
-        const db = await database.connectToDatabase();
+        const db = await database.connectToSlave();
         const [result] = await db.execute(query, [roll_no]);
         await db.end();
 
         if (result.length === 0) {
-            res.status(404).send({ message: 'User not found or invalid user.' });
+            res.status(409).send({ message: 'User not found or invalid user.' });
         } else {
             res.status(200).send(result[0]);
         }
@@ -54,23 +54,24 @@ app.post('/check_attendees', async (req, res) => {
 });
 
 app.post('/insert_attendees', async (req, res) => {
-    const { roll_no, name, branch } = req.body;
-    const lookup = `SELECT * FROM attendee_student WHERE roll_no = ?`; // Check in the attendee_student table
-    const query = 'INSERT INTO attendee_student (roll_no, name, branch) VALUES (?, ?, ?)';
+    const { roll_no, name, branch, program, batch } = req.body;
+    const lookup = `SELECT * FROM attendee_student WHERE roll_no = ?`;
+    const query = 'INSERT INTO attendee_student (roll_no, name, branch, program, batch) VALUES (?, ?, ?, ?, ?)';
     const update = `UPDATE student_data SET is_registered = ? WHERE roll_no = ?`;
-    const db = await database.connectToDatabase();
 
     try {
+        const db = await database.connectToMaster();
+
         // Check if the roll number already exists in attendee_student
         const [lookUpResult] = await db.execute(lookup, [roll_no]);
         if (lookUpResult.length !== 0) {
             res.status(409).send({ error: 'Duplicate data found.' });
             await db.end();
-            return; // Exit the function early if a duplicate is found
+            return;
         }
 
         // Insert the new student record into attendee_student
-        await db.execute(query, [roll_no, name, branch]);
+        await db.execute(query, [roll_no, name, branch, program, batch]);
 
         // Update the is_registered flag in student_data
         await db.execute(update, [true, roll_no]);
@@ -85,21 +86,16 @@ app.post('/insert_attendees', async (req, res) => {
             console.error('Failed to insert student details:', err);
             res.status(500).send({ error: 'Failed to insert student details.' });
         }
-    } finally {
-        if (db) await db.end(); // Ensure the connection is always closed
     }
 });
-
 
 app.post('/insert_guests', async (req, res) => {
     const { attendees, empty } = req.body;
 
-    // Handle the case where the attendees list is empty and the empty flag is true
     if (empty) {
         return res.status(200).send({ message: 'No guests to insert. The attendees list is empty.' });
     }
 
-    // Validate that attendees is an array and is not empty
     if (!Array.isArray(attendees) || attendees.length === 0) {
         return res.status(400).send({ error: 'Invalid input: Expected a non-empty array of guest objects.' });
     }
@@ -107,7 +103,7 @@ app.post('/insert_guests', async (req, res) => {
     const query = 'INSERT INTO guest_data (roll_no, guest_name, relation, phone_no) VALUES (?, ?, ?, ?)';
 
     try {
-        const db = await database.connectToDatabase();
+        const db = await database.connectToMaster();
         await db.beginTransaction();
 
         for (const guest of attendees) {
@@ -124,18 +120,51 @@ app.post('/insert_guests', async (req, res) => {
     }
 });
 
-
-
 app.get('/get_attendees', async (req, res) => {
     const { roll_no } = req.query;
     try {
-        const db = await database.connectToDatabase();
+        const db = await database.connectToSlave();
         const [guests] = await db.execute('SELECT * FROM guest_data WHERE roll_no = ?', [roll_no]);
         await db.end();
         res.status(200).send(guests);
     } catch (err) {
         console.error('Failed to get guests details:', err);
         res.status(500).send({ error: 'Failed to get guests details.' });
+    }
+});
+
+app.post('/insert_pass_url', async (req, res) => {
+    const { roll_no, pass_url } = req.body;
+    const query = 'UPDATE attendee_student SET pass_url = ? WHERE roll_no = ?';
+
+    try {
+        const db = await database.connectToMaster();
+        await db.execute(query, [pass_url, roll_no]);
+        await db.end();
+        res.status(200).send({ message: 'Pass URL updated successfully!' });
+    } catch (err) {
+        console.error('Failed to update pass URL:', err);
+        res.status(500).send({ error: 'Failed to update pass URL.' });
+    }
+});
+
+app.get('/get_pass_url', async (req, res) => {
+    const { roll_no } = req.query;
+    const query = 'SELECT pass_url FROM attendee_student WHERE roll_no = ?';
+
+    try {
+        const db = await database.connectToSlave();
+        const [result] = await db.execute(query, [roll_no]);
+        await db.end();
+
+        if (result.length === 0) {
+            res.status(404).send({ message: 'Pass URL not found.' });
+        } else {
+            res.status(200).send(result[0]);
+        }
+    } catch (err) {
+        console.error('Failed to get pass URL:', err);
+        res.status(500).send({ error: 'Failed to get pass URL.' });
     }
 });
 
